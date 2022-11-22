@@ -7,9 +7,7 @@ use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
 use tokio::task::JoinHandle;
 
-use crate::AsyncResult;
-
-pub async fn start_server() -> AsyncResult<JoinHandle<()>> {
+pub async fn start_server() -> JoinHandle<()> {
     let page_id = Arc::new(AtomicUsize::new(1));
     let page_id_generator = move || page_id.fetch_add(1, Ordering::Relaxed);
 
@@ -20,18 +18,16 @@ pub async fn start_server() -> AsyncResult<JoinHandle<()>> {
             Ok::<_, Infallible>(service_fn(move |_: Request<Body>| {
                 let page_id_generator = page_id_generator.clone();
 
-                async move {
-                    Ok::<_, Infallible>(Response::new(Body::from(page_id_generator().to_string())))
-                }
+                async move { Ok::<_, Infallible>(Response::new(format!("{:02}", page_id_generator()))) }
             }))
         }
     });
 
-    Ok(tokio::task::spawn(async move {
+    tokio::task::spawn(async {
         let address = SocketAddr::new(IpAddr::from(Ipv4Addr::LOCALHOST), 80);
 
         if let Err(err) = Server::bind(&address).serve(handle_func).await {
             println!("Error serving connection: {:?}", err);
         }
-    }))
+    })
 }

@@ -12,7 +12,7 @@ type AsyncVoidResult = AsyncResult<()>;
 
 #[tokio::main]
 async fn main() -> AsyncVoidResult {
-    start_server().await?;
+    start_server().await;
 
     let mut responses = download_pages(10).await;
     loop {
@@ -28,7 +28,7 @@ async fn main() -> AsyncVoidResult {
 async fn download_pages(n: u32) -> JoinSet<AsyncResult<String>> {
     let mut set = JoinSet::new();
 
-    for _ in 1..=n {
+    for _ in 0..n {
         set.spawn(download_page());
     }
 
