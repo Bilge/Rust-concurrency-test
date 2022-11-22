@@ -1,6 +1,5 @@
 use hyper::{body, Client, Uri};
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::task::JoinSet;
 
 use crate::server::start_server;
 
@@ -15,10 +14,10 @@ type AsyncVoidResult = AsyncResult<()>;
 async fn main() -> AsyncVoidResult {
     start_server().await?;
 
-    let mut responses = download_pages(10).await?;
+    let mut responses = download_pages(10).await;
     loop {
-        match responses.recv().await {
-            Some(response) => println!("{response}"),
+        match responses.join_next().await {
+            Some(response) => println!("{}", response??),
             None => break,
         }
     }
@@ -26,21 +25,19 @@ async fn main() -> AsyncVoidResult {
     Ok(())
 }
 
-async fn download_pages(n: u32) -> AsyncResult<Receiver<String>> {
-    let (tx, rx) = mpsc::channel(1);
+async fn download_pages(n: u32) -> JoinSet<AsyncResult<String>> {
+    let mut set = JoinSet::new();
 
     for _ in 1..=n {
-        tokio::task::spawn(download_page(tx.clone()));
+        set.spawn(download_page());
     }
 
-    Ok(rx)
+    set
 }
 
-async fn download_page(tx: Sender<String>) -> AsyncVoidResult {
+async fn download_page() -> AsyncResult<String> {
     let response = Client::new().get(Uri::from_static(URL)).await?;
     let body = body::to_bytes(response.into_body()).await?;
 
-    tx.send(String::from_utf8(Vec::from(body))?).await?;
-
-    Ok(())
+    Ok(String::from_utf8(Vec::from(body))?)
 }
